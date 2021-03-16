@@ -2,6 +2,14 @@
 
 In the CVO, upgrades are performed in the order described in the payload (lexographic), with operators only running in parallel if they share the same file prefix `0000_NN_` and differ by the next chunk `OPERATOR`, i.e. `0000_70_authentication-operator_*` and `0000_70_image-registry-operator_*` are run in parallel.
 
+Operators are expected to host the config they need to be installed to a cluster in the /manifests directory in their image.
+This command iterates over a set of operator images and extracts those manifests into a single, ordered list of
+Kubernetes objects that can then be iteratively updated on a cluster by the cluster version operator when it is time to
+perform an update. Manifest files are renamed to 0000_70_<image_name>_<filename> by default, and an operator author that
+needs to provide a global-ordered file (before or after other operators) should prepend 0000_NN_<component>_ to their
+filename, which instructs the release builder to not assign a component prefix. Only images in the input that have the
+image label io.openshift.release.operator=true will have manifests loaded.
+
 Priorities during upgrade:
 
 1. Simplify the problems that can occur
@@ -11,6 +19,13 @@ Priorities during upgrade:
 During upgrade we bias towards predictable ordering for operators that lack sophistication about detecting their prerequisites. Over time, operators should be better at detecting their prerequisites without overcomplicating or risking the predictability of upgrades.
 
 Currently, upgrades proceed in operator order without distinguishing between node and control plane components. Future improvements may allow nodes to upgrade independently and at different schedules to reduce production impact. This in turn complicates the investment operator teams must make in testing and understanding how to version their control plane components independently of node infrastructure.
+
+Ordering is only applied during upgrades, where some components rely on another component being updated first.
+As a convenience, the CVO guarantees that components at an earlier run level will be created or updated before your
+component is invoked. Note however that components without ClusterOperator objects defined may not be fully deployed
+when your component is executed, so always ensure your prerequisites know that they must correctly obey the
+ClusterOperator protocol to be available. More sophisticated components should observe the prerequisite ClusterOperators
+directly and use the versions field to enforce safety
 
 All components must be N-1 minor version (4.y and 4.y-1) compatible - a component must update its operator first, then its dependents.  All operators and control plane components MUST handle running with their dependents at a N-1 minor version for extended periods and test in that scenario.
 
